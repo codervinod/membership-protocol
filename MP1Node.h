@@ -34,6 +34,11 @@ enum MsgTypes{
     DUMMYLASTMSGTYPE
 };
 
+typedef struct JoinReqMesg {
+    char addr[6];
+    long heartbeat;
+}JoinReqMesg;
+
 /**
  * STRUCT NAME: MessageHdr
  *
@@ -42,6 +47,15 @@ enum MsgTypes{
 typedef struct MessageHdr {
 	enum MsgTypes msgType;
 }MessageHdr;
+
+typedef union MessageData {
+   JoinReqMesg join_req_mesg;
+}MessageData;
+
+typedef struct Message {
+    MessageHdr hdr;
+    MessageData data;
+}Message;
 
 /**
  * CLASS NAME: MP1Node
@@ -76,6 +90,9 @@ public:
 	void initMemberListTable(Member *memberNode);
 	void printAddress(Address *addr);
 	virtual ~MP1Node();
+private:
+    void handleJoinReq(Member *memberNode, JoinReqMesg *mesg_data);
+    void handleJoinRep(Member *memberNode);
 };
 
 #endif /* _MP1NODE_H_ */

@@ -118,7 +118,6 @@ int MP1Node::initThisNode(Address *joinaddr) {
  * DESCRIPTION: Join the distributed system
  */
 int MP1Node::introduceSelfToGroup(Address *joinaddr) {
-	MessageHdr *msg;
 #ifdef DEBUGLOG
     static char s[1024];
 #endif
@@ -131,23 +130,19 @@ int MP1Node::introduceSelfToGroup(Address *joinaddr) {
         memberNode->inGroup = true;
     }
     else {
-        size_t msgsize = sizeof(MessageHdr) + sizeof(joinaddr->addr) + sizeof(long) + 1;
-        msg = (MessageHdr *) malloc(msgsize * sizeof(char));
-
-        // create JOINREQ message: format of data is {struct Address myaddr}
-        msg->msgType = JOINREQ;
-        memcpy((char *)(msg+1), &memberNode->addr.addr, sizeof(memberNode->addr.addr));
-        memcpy((char *)(msg+1) + 1 + sizeof(memberNode->addr.addr), &memberNode->heartbeat, sizeof(long));
-
+        Message *message = (Message *)malloc(sizeof(Message));
+        message->hdr.msgType = JOINREQ;
+        memcpy(message->data.join_req_mesg.addr, &memberNode->addr.addr,
+            sizeof(memberNode->addr.addr));
+        message->data.join_req_mesg.heartbeat = memberNode->heartbeat;
+        size_t msgsize = sizeof(Message);
 #ifdef DEBUGLOG
         sprintf(s, "Trying to join...");
         log->LOG(&memberNode->addr, s);
 #endif
-
         // send JOINREQ message to introducer member
-        emulNet->ENsend(&memberNode->addr, joinaddr, (char *)msg, msgsize);
-
-        free(msg);
+        emulNet->ENsend(&memberNode->addr, joinaddr, (char *)message, msgsize);
+        free(message);
     }
 
     return 1;
@@ -218,6 +213,16 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 	/*
 	 * Your code goes here
 	 */
+    Member *memberNode = (Member*)env;
+    Message *msg = (Message*)data;
+    switch(msg->hdr.msgType) {
+        case JOINREQ:
+            handleJoinReq(memberNode, &(msg->data.join_req_mesg));
+            break;
+        case JOINREP:
+            handleJoinRep(memberNode);
+            break;
+    }
 }
 
 /**
@@ -232,7 +237,10 @@ void MP1Node::nodeLoopOps() {
 	/*
 	 * Your code goes here
 	 */
-
+	printf("vinod node op called for:");
+	printAddress(&(getMemberNode()->addr));
+    //log->logNodeAdd()
+    //log->logNodeRemove()
     return;
 }
 
@@ -278,4 +286,45 @@ void MP1Node::printAddress(Address *addr)
 {
     printf("%d.%d.%d.%d:%d \n",  addr->addr[0],addr->addr[1],addr->addr[2],
                                                        addr->addr[3], *(short*)&addr->addr[4]) ;    
+}
+
+void MP1Node::handleJoinReq(Member *memberNode, JoinReqMesg *mesg_data)
+{
+    Address addr;
+    memcpy(&addr.addr, &mesg_data->addr, sizeof(addr.addr));
+
+    int id;
+    short port;
+    long heartbeat = mesg_data->heartbeat;
+    long timestamp;
+
+    memcpy(&id, &addr.addr[0], sizeof(int));
+    memcpy(&port, &addr.addr[4], sizeof(short));
+    bool found = false;
+    for(auto &entry: memberNode->memberList)
+    {
+        if(entry.id == id)
+        {
+            found = true;
+        }
+    }
+
+    if (!found)
+    {
+        MemberListEntry entry = MemberListEntry(id, port,
+            heartbeat, timestamp);
+        memberNode->memberList.push_back(entry);
+    }
+
+    Message *smessage = (Message *)malloc(sizeof(Message));
+    smessage->hdr.msgType = JOINREP;
+    size_t msgsize = sizeof(Message);
+    // send JOINREP message to introducer member
+    emulNet->ENsend(&memberNode->addr, &addr, (char *)smessage, msgsize);
+    free(smessage);
+}
+
+void MP1Node::handleJoinRep(Member *memberNode)
+{
+    memberNode->inGroup = true;
 }

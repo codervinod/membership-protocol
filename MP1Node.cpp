@@ -7,6 +7,9 @@
 
 #include "MP1Node.h"
 
+#include <stdlib.h>     /* srand, rand */
+#include <time.h>       /* time */
+
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
  */
@@ -17,6 +20,9 @@
  * is necessary for your logic to work
  */
 MP1Node::MP1Node(Member *member, Params *params, EmulNet *emul, Log *log, Address *address) {
+    /* initialize random seed: */
+    srand (time(NULL));
+
 	for( int i = 0; i < 6; i++ ) {
 		NULLADDR[i] = 0;
 	}
@@ -222,6 +228,8 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         case JOINREP:
             handleJoinRep(memberNode);
             break;
+        case GOSSIP_MESSAGE:
+            handleGossipMesg(memberNode, &(msg->data.gossip_mesg));
     }
 }
 
@@ -237,10 +245,26 @@ void MP1Node::nodeLoopOps() {
 	/*
 	 * Your code goes here
 	 */
-	printf("vinod node op called for:");
-	printAddress(&(getMemberNode()->addr));
-    //log->logNodeAdd()
-    //log->logNodeRemove()
+	// Select 2 random address from membership list
+	// Send gossip message to them
+    Member *node = getMemberNode();
+    if(!node->memberList.empty())
+    {
+        int fanout = 2;
+        fanout = (node->memberList.size() < fanout)?node->memberList.size()
+                :fanout;
+
+        for(int i=0;i<fanout;++i)
+        {
+            int randomeEntryId = rand() % node->memberList.size();
+            MemberListEntry &entry = node->memberList[randomeEntryId];
+
+            Address addr;
+            memcpy(&addr.addr[0], &entry.id, sizeof(int));
+            memcpy(&addr.addr[4], &entry.port, sizeof(short));
+            sendGossipMesg(&addr);
+        }
+    }
     return;
 }
 
@@ -296,35 +320,48 @@ void MP1Node::handleJoinReq(Member *memberNode, JoinReqMesg *mesg_data)
     int id;
     short port;
     long heartbeat = mesg_data->heartbeat;
-    long timestamp;
+    long timestamp = memberNode->heartbeat;
 
     memcpy(&id, &addr.addr[0], sizeof(int));
     memcpy(&port, &addr.addr[4], sizeof(short));
-    bool found = false;
-    for(auto &entry: memberNode->memberList)
-    {
-        if(entry.id == id)
-        {
-            found = true;
-        }
-    }
 
-    if (!found)
-    {
-        MemberListEntry entry = MemberListEntry(id, port,
+    MemberListEntry entry = MemberListEntry(id, port,
             heartbeat, timestamp);
-        memberNode->memberList.push_back(entry);
-    }
 
+    memberNode->memberList.push_back(entry);
+
+    log->logNodeAdd(&memberNode->addr, &addr);
+    sendJoinRep(&addr);
+}
+
+void MP1Node::sendJoinRep(Address *addr)
+{
     Message *smessage = (Message *)malloc(sizeof(Message));
     smessage->hdr.msgType = JOINREP;
     size_t msgsize = sizeof(Message);
     // send JOINREP message to introducer member
-    emulNet->ENsend(&memberNode->addr, &addr, (char *)smessage, msgsize);
+    emulNet->ENsend(&memberNode->addr, addr, (char *)smessage, msgsize);
     free(smessage);
 }
 
 void MP1Node::handleJoinRep(Member *memberNode)
 {
     memberNode->inGroup = true;
+}
+
+void MP1Node::sendGossipMesg(Address *addr)
+{
+    Message *smessage = (Message *)malloc(sizeof(Message));
+    smessage->hdr.msgType = GOSSIP_MESSAGE;
+    size_t msgsize = sizeof(Message);
+    printf("Sending gossip to:");
+    printAddress(addr);
+    // send JOINREP message to introducer member
+    emulNet->ENsend(&memberNode->addr, addr, (char *)smessage, msgsize);
+    free(smessage);
+}
+
+void MP1Node::handleGossipMesg(Member *memberNode, GossipMesg *gossip_mesg)
+{
+
 }

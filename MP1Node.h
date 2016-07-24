@@ -31,13 +31,16 @@
 enum MsgTypes{
     JOINREQ,
     JOINREP,
-    DUMMYLASTMSGTYPE
+    GOSSIP_MESSAGE
 };
 
 typedef struct JoinReqMesg {
     char addr[6];
     long heartbeat;
 }JoinReqMesg;
+
+typedef struct GossipMesg {
+}GossipMesg;
 
 /**
  * STRUCT NAME: MessageHdr
@@ -50,6 +53,7 @@ typedef struct MessageHdr {
 
 typedef union MessageData {
    JoinReqMesg join_req_mesg;
+   GossipMesg gossip_mesg;
 }MessageData;
 
 typedef struct Message {
@@ -93,6 +97,11 @@ public:
 private:
     void handleJoinReq(Member *memberNode, JoinReqMesg *mesg_data);
     void handleJoinRep(Member *memberNode);
+    void handleGossipMesg(Member *memberNode, GossipMesg *gossip_mesg);
+
+    void sendJoinRep(Address *addr);
+    void sendGossipMesg(Address *addr);
+
 };
 
 #endif /* _MP1NODE_H_ */

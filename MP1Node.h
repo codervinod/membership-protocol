@@ -40,6 +40,8 @@ typedef struct JoinReqMesg {
 }JoinReqMesg;
 
 typedef struct GossipMesg {
+    long number_of_entry;
+    MemberListEntry entry_list[1];
 }GossipMesg;
 
 /**

@@ -351,17 +351,37 @@ void MP1Node::handleJoinRep(Member *memberNode)
 
 void MP1Node::sendGossipMesg(Address *addr)
 {
-    Message *smessage = (Message *)malloc(sizeof(Message));
+    int num_members = getMemberNode()->memberList.size();
+    if(num_members <= 0)
+    {
+        return;
+    }
+    size_t size_of_mesg = sizeof(Message) +
+        (num_members-1)*sizeof(MemberListEntry);
+    Message *smessage = (Message *)malloc(size_of_mesg);
     smessage->hdr.msgType = GOSSIP_MESSAGE;
-    size_t msgsize = sizeof(Message);
+
+
     printf("Sending gossip to:");
     printAddress(addr);
+
+    GossipMesg *gossip = &smessage->data.gossip_mesg;
+    gossip->number_of_entry = getMemberNode()->memberList.size();
+
+    int i = 0;
+    for( auto &entry : getMemberNode()->memberList)
+    {
+        memcpy(&(gossip->entry_list[i]), &entry, sizeof(MemberListEntry));
+        ++i;
+    }
+
     // send JOINREP message to introducer member
-    emulNet->ENsend(&memberNode->addr, addr, (char *)smessage, msgsize);
+    emulNet->ENsend(&memberNode->addr, addr, (char *)smessage, size_of_mesg);
     free(smessage);
 }
 
 void MP1Node::handleGossipMesg(Member *memberNode, GossipMesg *gossip_mesg)
 {
-
+    printf("Recieved gossip with # of entries = %ld\n",
+    gossip_mesg->number_of_entry);
 }

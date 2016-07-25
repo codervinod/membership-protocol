@@ -30,6 +30,11 @@ class Address {
 public:
 	char addr[6];
 	Address() {}
+	Address(int id, short port)
+	{
+	    memcpy(&addr[0], &id, sizeof(int));
+        memcpy(&addr[4], &port, sizeof(short));
+	}
 	// Copy constructor
 	Address(const Address &anotherAddress);
 	 // Overloaded = operator

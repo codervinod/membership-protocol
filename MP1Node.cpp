@@ -248,6 +248,8 @@ void MP1Node::nodeLoopOps() {
 	// Select 2 random address from membership list
 	// Send gossip message to them
     Member *node = getMemberNode();
+    node->heartbeat = node->heartbeat + 1;
+
     if(!node->memberList.empty())
     {
         int fanout = 2;
@@ -351,6 +353,7 @@ void MP1Node::handleJoinRep(Member *memberNode)
 
 void MP1Node::sendGossipMesg(Address *addr)
 {
+
     int num_members = getMemberNode()->memberList.size();
     if(num_members <= 0)
     {
@@ -362,8 +365,8 @@ void MP1Node::sendGossipMesg(Address *addr)
     smessage->hdr.msgType = GOSSIP_MESSAGE;
 
 
-    printf("Sending gossip to:");
-    printAddress(addr);
+    printf("Sending gossip to:"); printAddress(addr);
+    printf("from:"); printAddress(&getMemberNode()->addr);
 
     GossipMesg *gossip = &smessage->data.gossip_mesg;
     gossip->number_of_entry = getMemberNode()->memberList.size();
@@ -382,6 +385,39 @@ void MP1Node::sendGossipMesg(Address *addr)
 
 void MP1Node::handleGossipMesg(Member *memberNode, GossipMesg *gossip_mesg)
 {
-    printf("Recieved gossip with # of entries = %ld\n",
-    gossip_mesg->number_of_entry);
+    for(int i = 0; i < gossip_mesg->number_of_entry; ++i)
+    {
+        MemberListEntry *new_entry = &gossip_mesg->entry_list[i];
+        MemberListEntry *old_entry = getMemberListEntryForId(new_entry->id);
+
+        if(old_entry)
+        {
+            printf("found old entry for:%d\n", new_entry->id);
+            //Compare heatbeat counters
+            if (old_entry->heartbeat < new_entry->heartbeat)
+            {
+                old_entry->heartbeat = new_entry->heartbeat;
+            }
+        }
+        else
+        {
+
+            new_entry->heartbeat = getMemberNode()->heartbeat;
+            Address addr(new_entry->id, new_entry->port);
+            log->logNodeAdd(&memberNode->addr, &addr);
+            getMemberNode()->memberList.push_back(*new_entry);
+        }
+    }
+}
+
+MemberListEntry *MP1Node::getMemberListEntryForId(int id)
+{
+    for( auto &entry : getMemberNode()->memberList)
+    {
+        if( id == entry.id)
+        {
+            return &entry;
+        }
+    }
+    return NULL;
 }

@@ -104,6 +104,9 @@ private:
     void sendJoinRep(Address *addr);
     void sendGossipMesg(Address *addr);
 
+    MemberListEntry *getMemberListEntryForId(int id);
+
+
 };
 
 #endif /* _MP1NODE_H_ */

@@ -430,7 +430,9 @@ void MP1Node::handleGossipMesg(Member *memberNode, GossipMesg *gossip_mesg)
 
             new_entry->heartbeat = getMemberNode()->heartbeat;
             new_entry->timestamp = getTimeStamp();
-            Address addr(new_entry->id, new_entry->port);
+            Address addr;
+            memcpy(&addr[0], &new_entry->id, sizeof(int));
+            memcpy(&addr[4], &new_entry->port, sizeof(short));
             log->logNodeAdd(&memberNode->addr, &addr);
             getMemberNode()->memberList.push_back(*new_entry);
         }
@@ -456,8 +458,9 @@ void MP1Node::removeNodeFromMembership(int id)
     {
         if( id == itr->id)
         {
-
-            Address addr(itr->id, itr->port);
+            Address addr;
+            memcpy(&addr[0], &itr->id, sizeof(int));
+            memcpy(&addr[4], &itr->port, sizeof(short));
             log->logNodeRemove(&memberNode->addr, &addr);
             getMemberNode()->memberList.erase(itr);
             return ;

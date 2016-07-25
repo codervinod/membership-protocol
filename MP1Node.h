@@ -75,7 +75,7 @@ private:
 	Params *par;
 	Member *memberNode;
 	char NULLADDR[6];
-
+    int timestamp;
 public:
 	MP1Node(Member *, Params *, EmulNet *, Log *, Address *);
 	Member * getMemberNode() {
@@ -105,6 +105,10 @@ private:
     void sendGossipMesg(Address *addr);
 
     MemberListEntry *getMemberListEntryForId(int id);
+    void scanMembershipListForFailures();
+    void removeNodeFromMembership(int id);
+
+    int getTimeStamp() { return timestamp;}
 
 
 };

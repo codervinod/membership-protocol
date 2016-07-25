@@ -31,6 +31,7 @@ MP1Node::MP1Node(Member *member, Params *params, EmulNet *emul, Log *log, Addres
 	this->log = log;
 	this->par = params;
 	this->memberNode->addr = *address;
+	this->timestamp = 0;
 }
 
 /**
@@ -46,6 +47,7 @@ MP1Node::~MP1Node() {}
  */
 int MP1Node::recvLoop() {
     if ( memberNode->bFailed ) {
+        printf("Someone failed vinod\n");
     	return false;
     }
     else {
@@ -245,14 +247,30 @@ void MP1Node::nodeLoopOps() {
 	/*
 	 * Your code goes here
 	 */
-	// Select 2 random address from membership list
-	// Send gossip message to them
+
     Member *node = getMemberNode();
     node->heartbeat = node->heartbeat + 1;
+    ++this->timestamp;
 
+    scanMembershipListForFailures();
+
+    int id = 0;
+    short port;
+    memcpy(&id, &node->addr.addr[0], sizeof(int));
+    memcpy(&port, &node->addr.addr[4], sizeof(short));
+
+    MemberListEntry *member_entry = getMemberListEntryForId(id);
+    if(member_entry)
+    {
+        member_entry->heartbeat = node->heartbeat;
+        member_entry->timestamp = getTimeStamp();
+    }
+
+	// Select 2 random address from membership list
+	// Send gossip message to them
     if(!node->memberList.empty())
     {
-        int fanout = 2;
+        int fanout = 3;
         fanout = (node->memberList.size() < fanout)?node->memberList.size()
                 :fanout;
 
@@ -322,7 +340,7 @@ void MP1Node::handleJoinReq(Member *memberNode, JoinReqMesg *mesg_data)
     int id;
     short port;
     long heartbeat = mesg_data->heartbeat;
-    long timestamp = memberNode->heartbeat;
+    long timestamp = getTimeStamp();
 
     memcpy(&id, &addr.addr[0], sizeof(int));
     memcpy(&port, &addr.addr[4], sizeof(short));
@@ -364,10 +382,6 @@ void MP1Node::sendGossipMesg(Address *addr)
     Message *smessage = (Message *)malloc(size_of_mesg);
     smessage->hdr.msgType = GOSSIP_MESSAGE;
 
-
-    printf("Sending gossip to:"); printAddress(addr);
-    printf("from:"); printAddress(&getMemberNode()->addr);
-
     GossipMesg *gossip = &smessage->data.gossip_mesg;
     gossip->number_of_entry = getMemberNode()->memberList.size();
 
@@ -383,6 +397,18 @@ void MP1Node::sendGossipMesg(Address *addr)
     free(smessage);
 }
 
+void MP1Node::scanMembershipListForFailures()
+{
+    for( auto &entry : getMemberNode()->memberList)
+    {
+        long diff = getTimeStamp() - entry.timestamp;
+        if (diff > TREMOVE)
+        {
+            removeNodeFromMembership(entry.id);
+        }
+    }
+}
+
 void MP1Node::handleGossipMesg(Member *memberNode, GossipMesg *gossip_mesg)
 {
     for(int i = 0; i < gossip_mesg->number_of_entry; ++i)
@@ -392,17 +418,18 @@ void MP1Node::handleGossipMesg(Member *memberNode, GossipMesg *gossip_mesg)
 
         if(old_entry)
         {
-            printf("found old entry for:%d\n", new_entry->id);
             //Compare heatbeat counters
             if (old_entry->heartbeat < new_entry->heartbeat)
             {
                 old_entry->heartbeat = new_entry->heartbeat;
+                old_entry->timestamp = getTimeStamp();
             }
         }
         else
         {
 
             new_entry->heartbeat = getMemberNode()->heartbeat;
+            new_entry->timestamp = getTimeStamp();
             Address addr(new_entry->id, new_entry->port);
             log->logNodeAdd(&memberNode->addr, &addr);
             getMemberNode()->memberList.push_back(*new_entry);
@@ -412,7 +439,7 @@ void MP1Node::handleGossipMesg(Member *memberNode, GossipMesg *gossip_mesg)
 
 MemberListEntry *MP1Node::getMemberListEntryForId(int id)
 {
-    for( auto &entry : getMemberNode()->memberList)
+    for( auto &&entry : getMemberNode()->memberList)
     {
         if( id == entry.id)
         {
@@ -421,3 +448,20 @@ MemberListEntry *MP1Node::getMemberListEntryForId(int id)
     }
     return NULL;
 }
+
+void MP1Node::removeNodeFromMembership(int id)
+{
+    for( vector<MemberListEntry>::iterator itr= getMemberNode()->memberList.begin();
+        itr != getMemberNode()->memberList.end(); ++itr)
+    {
+        if( id == itr->id)
+        {
+
+            Address addr(itr->id, itr->port);
+            log->logNodeRemove(&memberNode->addr, &addr);
+            getMemberNode()->memberList.erase(itr);
+            return ;
+        }
+    }
+}
+

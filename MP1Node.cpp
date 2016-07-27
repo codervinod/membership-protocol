@@ -47,7 +47,6 @@ MP1Node::~MP1Node() {}
  */
 int MP1Node::recvLoop() {
     if ( memberNode->bFailed ) {
-        printf("Someone failed vinod\n");
     	return false;
     }
     else {
@@ -251,7 +250,6 @@ void MP1Node::nodeLoopOps() {
     Member *node = getMemberNode();
     node->heartbeat = node->heartbeat + 1;
     ++this->timestamp;
-
     scanMembershipListForFailures();
 
     int id = 0;
@@ -347,6 +345,19 @@ void MP1Node::handleJoinReq(Member *memberNode, JoinReqMesg *mesg_data)
 
     MemberListEntry entry = MemberListEntry(id, port,
             heartbeat, timestamp);
+
+    if(memberNode->memberList.empty())
+    {
+        int id;
+        short port;
+        memcpy(&id, &memberNode->addr.addr[0], sizeof(int));
+        memcpy(&port, &memberNode->addr.addr[4], sizeof(short));
+
+        //Add my own entry here
+        MemberListEntry own_entry = MemberListEntry(id, port,
+            memberNode->heartbeat, timestamp);
+        memberNode->memberList.push_back(own_entry);
+    }
 
     memberNode->memberList.push_back(entry);
 

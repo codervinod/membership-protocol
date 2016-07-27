@@ -273,7 +273,7 @@ void MP1Node::nodeLoopOps() {
 	// Send gossip message to them
     if(!node->memberList.empty())
     {
-        int fanout = 2;
+        int fanout = 4;
         fanout = (node->memberList.size() < fanout)?node->memberList.size()
                 :fanout;
 
@@ -439,24 +439,25 @@ void MP1Node::scanMembershipListForFailures()
                                             entry.id);
 
 
-        if (diff > TREMOVE)
+        if (diff > (TREMOVE*10))
         {
 //            printf("Detected failure at:%d by", entry.id);
 //            printAddress(&getMemberNode()->addr);
-            Address addr;
-            memcpy(&addr.addr[0], &entry.id, sizeof(int));
-            memcpy(&addr.addr[4], &entry.port, sizeof(short));
-            log->logNodeRemove(&getMemberNode()->addr, &addr);
+
             itr = getMemberNode()->memberList.erase(itr);
             if(itr2 != _failedSet->end())
             {
                 _failedSet->erase(itr2);
             }
             continue;
-        }else if(diff > TFAIL){
-
+        }else if(diff > TFAIL)
+        {
             if (itr2 == _failedSet->end())
             {
+                Address addr;
+                memcpy(&addr.addr[0], &entry.id, sizeof(int));
+                memcpy(&addr.addr[4], &entry.port, sizeof(short));
+                log->logNodeRemove(&getMemberNode()->addr, &addr);
 //               printf("marking it failed\n");
                _failedSet->push_back(entry.id);
             }
@@ -471,7 +472,12 @@ void MP1Node::handleGossipMesg(Member *memberNode, GossipMesg *gossip_mesg)
     {
         MemberListEntry *new_entry = &gossip_mesg->entry_list[i];
         MemberListEntry *old_entry = getMemberListEntryForId(new_entry->id);
-
+        vector<int>::iterator itr = find (_failedSet->begin(),
+                    _failedSet->end(), new_entry->id);
+        if(itr != _failedSet->end())
+        {
+            continue;
+        }
         if(old_entry)
         {
             //Compare heatbeat counters
@@ -483,7 +489,6 @@ void MP1Node::handleGossipMesg(Member *memberNode, GossipMesg *gossip_mesg)
         }
         else
         {
-
             new_entry->heartbeat = getMemberNode()->heartbeat;
             new_entry->timestamp = getTimeStamp();
             Address addr;

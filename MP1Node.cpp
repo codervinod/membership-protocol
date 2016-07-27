@@ -269,7 +269,7 @@ void MP1Node::nodeLoopOps() {
         member_entry->timestamp = getTimeStamp();
     }
 
-	// Select 2 random address from membership list
+	// Select 4 random address from membership list
 	// Send gossip message to them
     if(!node->memberList.empty())
     {
@@ -282,8 +282,8 @@ void MP1Node::nodeLoopOps() {
             int randomeEntryId = rand() % node->memberList.size();
 
             MemberListEntry &entry = node->memberList[randomeEntryId];
-            vector<int>::iterator itr = find (_failedSet->begin(), _failedSet->end(),
-                                            entry.id);
+            vector<int>::iterator itr = find (_failedSet->begin(),
+                _failedSet->end(), entry.id);
             if (itr != _failedSet->end())
             {
                 fanout+=1;
@@ -422,8 +422,7 @@ void MP1Node::sendGossipMesg(Address *addr)
         memcpy(&(gossip->entry_list[i]), &entry, sizeof(MemberListEntry));
         ++i;
     }
-
-    // send JOINREP message to introducer member
+    // send Gossip message
     emulNet->ENsend(&memberNode->addr, addr, (char *)smessage, size_of_mesg);
     free(smessage);
 }
@@ -441,9 +440,6 @@ void MP1Node::scanMembershipListForFailures()
 
         if (diff > (TREMOVE*10))
         {
-//            printf("Detected failure at:%d by", entry.id);
-//            printAddress(&getMemberNode()->addr);
-
             itr = getMemberNode()->memberList.erase(itr);
             if(itr2 != _failedSet->end())
             {
@@ -458,7 +454,6 @@ void MP1Node::scanMembershipListForFailures()
                 memcpy(&addr.addr[0], &entry.id, sizeof(int));
                 memcpy(&addr.addr[4], &entry.port, sizeof(short));
                 log->logNodeRemove(&getMemberNode()->addr, &addr);
-//               printf("marking it failed\n");
                _failedSet->push_back(entry.id);
             }
         }

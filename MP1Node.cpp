@@ -410,13 +410,23 @@ void MP1Node::sendGossipMesg(Address *addr)
 
 void MP1Node::scanMembershipListForFailures()
 {
-    for( auto &entry : getMemberNode()->memberList)
+    for( vector<MemberListEntry>::iterator itr= getMemberNode()->memberList.begin();
+        itr != getMemberNode()->memberList.end(); )
     {
+        MemberListEntry &entry = *itr;
         long diff = getTimeStamp() - entry.timestamp;
+
         if (diff > TREMOVE)
         {
-            removeNodeFromMembership(entry.id);
+
+            Address addr;
+            memcpy(&addr.addr[0], &entry.id, sizeof(int));
+            memcpy(&addr.addr[4], &entry.port, sizeof(short));
+            log->logNodeRemove(&getMemberNode()->addr, &addr);
+            itr = getMemberNode()->memberList.erase(itr);
+            continue;
         }
+        ++itr;
     }
 }
 
@@ -461,21 +471,21 @@ MemberListEntry *MP1Node::getMemberListEntryForId(int id)
     }
     return NULL;
 }
-
-void MP1Node::removeNodeFromMembership(int id)
-{
-    for( vector<MemberListEntry>::iterator itr= getMemberNode()->memberList.begin();
-        itr != getMemberNode()->memberList.end(); ++itr)
-    {
-        if( id == itr->id)
-        {
-            Address addr;
-            memcpy(&addr.addr[0], &itr->id, sizeof(int));
-            memcpy(&addr.addr[4], &itr->port, sizeof(short));
-            log->logNodeRemove(&memberNode->addr, &addr);
-            getMemberNode()->memberList.erase(itr);
-            return ;
-        }
-    }
-}
-
+//
+//void MP1Node::removeNodeFromMembership(int id)
+//{
+//    for( vector<MemberListEntry>::iterator itr= getMemberNode()->memberList.begin();
+//        itr != getMemberNode()->memberList.end(); ++itr)
+//    {
+//        if( id == itr->id)
+//        {
+//            Address addr;
+//            memcpy(&addr.addr[0], &itr->id, sizeof(int));
+//            memcpy(&addr.addr[4], &itr->port, sizeof(short));
+//            log->logNodeRemove(&memberNode->addr, &addr);
+//            getMemberNode()->memberList.erase(itr);
+//            return ;
+//        }
+//    }
+//}
+//

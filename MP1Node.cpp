@@ -32,12 +32,17 @@ MP1Node::MP1Node(Member *member, Params *params, EmulNet *emul, Log *log, Addres
 	this->par = params;
 	this->memberNode->addr = *address;
 	this->timestamp = 0;
+	_failedSet = new vector<int>();
 }
 
 /**
  * Destructor of the MP1Node class
  */
-MP1Node::~MP1Node() {}
+MP1Node::~MP1Node() {
+    if(_failedSet) {
+        delete _failedSet;
+    }
+}
 
 /**
  * FUNCTION NAME: recvLoop
@@ -268,14 +273,22 @@ void MP1Node::nodeLoopOps() {
 	// Send gossip message to them
     if(!node->memberList.empty())
     {
-        int fanout = 3;
+        int fanout = 2;
         fanout = (node->memberList.size() < fanout)?node->memberList.size()
                 :fanout;
 
         for(int i=0;i<fanout;++i)
         {
             int randomeEntryId = rand() % node->memberList.size();
+
             MemberListEntry &entry = node->memberList[randomeEntryId];
+            vector<int>::iterator itr = find (_failedSet->begin(), _failedSet->end(),
+                                            entry.id);
+            if (itr != _failedSet->end())
+            {
+                fanout+=1;
+                continue;
+            }
 
             Address addr;
             memcpy(&addr.addr[0], &entry.id, sizeof(int));
@@ -399,6 +412,13 @@ void MP1Node::sendGossipMesg(Address *addr)
     int i = 0;
     for( auto &entry : getMemberNode()->memberList)
     {
+        vector<int>::iterator itr = find (_failedSet->begin(),
+        _failedSet->end(), entry.id);
+        if (itr != _failedSet->end())
+        {
+            --gossip->number_of_entry;
+            continue;
+        }
         memcpy(&(gossip->entry_list[i]), &entry, sizeof(MemberListEntry));
         ++i;
     }
@@ -415,16 +435,31 @@ void MP1Node::scanMembershipListForFailures()
     {
         MemberListEntry &entry = *itr;
         long diff = getTimeStamp() - entry.timestamp;
+        vector<int>::iterator itr2 = find (_failedSet->begin(), _failedSet->end(),
+                                            entry.id);
+
 
         if (diff > TREMOVE)
         {
-
+//            printf("Detected failure at:%d by", entry.id);
+//            printAddress(&getMemberNode()->addr);
             Address addr;
             memcpy(&addr.addr[0], &entry.id, sizeof(int));
             memcpy(&addr.addr[4], &entry.port, sizeof(short));
             log->logNodeRemove(&getMemberNode()->addr, &addr);
             itr = getMemberNode()->memberList.erase(itr);
+            if(itr2 != _failedSet->end())
+            {
+                _failedSet->erase(itr2);
+            }
             continue;
+        }else if(diff > TFAIL){
+
+            if (itr2 == _failedSet->end())
+            {
+//               printf("marking it failed\n");
+               _failedSet->push_back(entry.id);
+            }
         }
         ++itr;
     }
@@ -471,21 +506,3 @@ MemberListEntry *MP1Node::getMemberListEntryForId(int id)
     }
     return NULL;
 }
-//
-//void MP1Node::removeNodeFromMembership(int id)
-//{
-//    for( vector<MemberListEntry>::iterator itr= getMemberNode()->memberList.begin();
-//        itr != getMemberNode()->memberList.end(); ++itr)
-//    {
-//        if( id == itr->id)
-//        {
-//            Address addr;
-//            memcpy(&addr.addr[0], &itr->id, sizeof(int));
-//            memcpy(&addr.addr[4], &itr->port, sizeof(short));
-//            log->logNodeRemove(&memberNode->addr, &addr);
-//            getMemberNode()->memberList.erase(itr);
-//            return ;
-//        }
-//    }
-//}
-//

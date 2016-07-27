@@ -106,10 +106,9 @@ private:
 
     MemberListEntry *getMemberListEntryForId(int id);
     void scanMembershipListForFailures();
-    void removeNodeFromMembership(int id);
 
     int getTimeStamp() { return timestamp;}
-
+    vector<int> *_failedSet;
 
 };
 
